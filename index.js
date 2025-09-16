@@ -148,11 +148,22 @@ const {
   client.once("ready", async () => {
     console.log(`${client.user.tag} is online!`);
     
-    // Save channel backups
-    client.guilds.cache.forEach(guild => {
-      guild.channels.cache.forEach(channel => saveChannelBackup(channel));
-    });
-  
+    // Save channel backups safely
+    try {
+      client.guilds.cache.forEach(guild => {
+        if (guild.channels && guild.channels.cache) {
+          guild.channels.cache.forEach(channel => {
+            if (channel) {
+              saveChannelBackup(channel);
+            }
+          });
+        }
+      });
+    } catch (error) {
+      console.error('Error during channel backup:', error);
+    }
+    
+    // Register commands
     const rest = new REST({ version: "10" }).setToken(BOT_TOKEN);
     try {
       await rest.put(
@@ -230,18 +241,25 @@ const {
   
   // ==== BACKUP SYSTEM ====
   function saveChannelBackup(channel) {
-    channelBackups.set(channel.id, {
-      name: channel.name,
-      type: channel.type,
-      parent: channel.parentId,
-      position: channel.rawPosition,
-      permissionOverwrites: channel.permissionOverwrites.cache.map(po => ({
-        id: po.id,
-        allow: po.allow.bitfield.toString(),
-        deny: po.deny.bitfield.toString(),
-        type: po.type
-      }))
-    });
+    try {
+      if (!channel || !channel.id) return;
+      
+      channelBackups.set(channel.id, {
+        name: channel.name,
+        type: channel.type,
+        parent: channel.parentId,
+        position: channel.rawPosition || 0,
+        permissionOverwrites: channel.permissionOverwrites?.cache ? 
+          channel.permissionOverwrites.cache.map(po => ({
+            id: po.id,
+            allow: po.allow.bitfield.toString(),
+            deny: po.deny.bitfield.toString(),
+            type: po.type
+          })) : []
+      });
+    } catch (error) {
+      console.error('Error saving channel backup:', error);
+    }
   }
   
   client.on("channelDelete", channel => {
